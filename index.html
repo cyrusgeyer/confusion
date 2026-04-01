@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clinical Threshold Tuner</title>
+<title>ML Teaching Tools</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   :root {
@@ -210,15 +210,204 @@
     .charts-grid { grid-template-columns: 1fr; }
     .info-cards { flex-direction: column; }
     .threshold-strip { flex-wrap: wrap; }
+    .clf-main { flex-direction: column; }
+    .clf-sidebar { width: 100%; }
+  }
+
+  /* =========================
+     Tab navigation
+     ========================= */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 14px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--panel);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .tab-btn:last-child { border-right: none; }
+  .tab-btn.active {
+    color: var(--text);
+    background: var(--bg);
+    box-shadow: inset 0 -3px 0 var(--sens);
+  }
+  .tab-btn:hover:not(.active) { background: #f0f3f7; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* =========================
+     Classification Playground
+     ========================= */
+  .clf-main {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .clf-canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .clf-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    cursor: crosshair;
+    background: #FAFCFE;
+  }
+  .clf-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .clf-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .clf-panel h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 10px 0;
+  }
+
+  /* Toolbar */
+  .clf-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 16px;
+  }
+  .clf-toolbar .tool-group {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .clf-toolbar .tool-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+    border: none;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .clf-toolbar .tool-btn:last-child { border-right: none; }
+  .clf-toolbar .tool-btn.active {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .clf-toolbar .tool-btn.class-a.active { background: rgba(143,185,227,0.25); color: #3B6FA0; }
+  .clf-toolbar .tool-btn.class-b.active { background: rgba(217,124,124,0.25); color: #A04040; }
+  .clf-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+  .clf-toolbar .clear-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ppv);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .clf-toolbar .clear-btn:hover { background: rgba(181,101,118,0.08); }
+  .brush-size-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .brush-size-wrap input[type="range"] {
+    width: 80px;
+    accent-color: var(--sens);
+  }
+
+  /* Model selector pills */
+  .model-pills {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .model-pill {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--muted);
+    background: var(--panel);
+    border: none;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .model-pill:last-child { border-right: none; }
+  .model-pill.active {
+    color: var(--text);
+    background: var(--bg);
+    box-shadow: inset 0 -2px 0 var(--sens);
+  }
+  .param-row { margin-bottom: 6px; }
+  .param-row.hidden { display: none; }
+  .clf-info-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
   }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Clinical Threshold Tuner</h1>
-  <p>Interactive demonstration for medical students: explore how prevalence, model quality, calibration, and threshold choice affect sensitivity, specificity, PPV, and missed cases.</p>
+  <h1>ML Teaching Tools</h1>
+  <p>Interactive demonstrations for medical students: explore classification thresholds, decision boundaries, and how model choices affect clinical outcomes.</p>
 </div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="tab-threshold">Threshold Tuner</button>
+  <button class="tab-btn" data-tab="tab-classifier">Classification Playground</button>
+</div>
+
+<div id="tab-threshold" class="tab-content active">
 
 <div class="controls-row">
   <div class="controls-col">
@@ -273,6 +462,75 @@
   <div class="chart-cell" id="chart-roc"></div>
   <div class="chart-cell" id="chart-tradeoff"></div>
 </div>
+</div><!-- end tab-threshold -->
+
+<div id="tab-classifier" class="tab-content">
+<div class="clf-toolbar">
+  <div class="tool-group">
+    <button class="tool-btn class-a active" data-class="0">&#9679; Class A</button>
+    <button class="tool-btn class-b" data-class="1">&#9679; Class B</button>
+  </div>
+  <div class="sep"></div>
+  <div class="tool-group">
+    <button class="tool-btn active" data-mode="point">Point</button>
+    <button class="tool-btn" data-mode="brush">Brush</button>
+  </div>
+  <div class="brush-size-wrap" id="brush-size-wrap" style="display:none;">
+    <span>Size</span>
+    <input type="range" id="sl-brush-size" min="10" max="60" step="2" value="30">
+    <span class="val" id="val-brush-size">30</span>
+  </div>
+  <button class="clear-btn" id="btn-clf-clear">Clear All</button>
+</div>
+
+<div class="clf-main">
+  <div class="clf-canvas-wrap">
+    <canvas id="clf-canvas" width="600" height="600"></canvas>
+  </div>
+  <div class="clf-sidebar">
+    <div class="clf-panel">
+      <h3>Model</h3>
+      <div class="model-pills">
+        <button class="model-pill active" data-model="knn">k-NN</button>
+        <button class="model-pill" data-model="dt">Dec. Tree</button>
+        <button class="model-pill" data-model="rf">Rand. Forest</button>
+      </div>
+      <div class="param-row" id="param-k">
+        <div class="slider-group">
+          <label>k (neighbours) <span class="val" id="val-k">5</span></label>
+          <input type="range" id="sl-k" min="1" max="25" step="2" value="5">
+        </div>
+      </div>
+      <div class="param-row hidden" id="param-depth-dt">
+        <div class="slider-group">
+          <label>Max depth <span class="val" id="val-depth-dt">4</span></label>
+          <input type="range" id="sl-depth-dt" min="1" max="15" step="1" value="4">
+        </div>
+      </div>
+      <div class="param-row hidden" id="param-depth-rf">
+        <div class="slider-group">
+          <label>Max depth <span class="val" id="val-depth-rf">4</span></label>
+          <input type="range" id="sl-depth-rf" min="1" max="15" step="1" value="4">
+        </div>
+      </div>
+      <div class="param-row hidden" id="param-ntrees">
+        <div class="slider-group">
+          <label>Trees <span class="val" id="val-ntrees">30</span></label>
+          <input type="range" id="sl-ntrees" min="5" max="200" step="5" value="30">
+        </div>
+      </div>
+    </div>
+    <div class="clf-panel">
+      <h3>Info</h3>
+      <div class="clf-info-cards" id="clf-info-cards">
+        <div class="info-card" style="border-left: 6px solid var(--healthy);"><div class="card-title">CLASS A</div><div class="card-value" style="color:var(--text);">0</div></div>
+        <div class="info-card" style="border-left: 6px solid var(--disease);"><div class="card-title">CLASS B</div><div class="card-value" style="color:var(--text);">0</div></div>
+        <div class="info-card" style="border-left: 6px solid var(--acc);"><div class="card-title">TRAIN ACCURACY</div><div class="card-value" style="color:var(--text);">—</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end tab-classifier -->
 
 <script>
 // ===========================
@@ -714,6 +972,478 @@ btnRegen.addEventListener('click', () => {
 
 // Initial render
 updateDashboard();
+
+// ===========================
+// Tab switching
+// ===========================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'tab-classifier' && !clfInitialized) {
+      clfInitialized = true;
+      resizeClfCanvas();
+      drawCanvas();
+    }
+  });
+});
+
+// ===========================
+// Classification Playground
+// ===========================
+let clfInitialized = false;
+const clfCanvas = document.getElementById('clf-canvas');
+const clfCtx = clfCanvas.getContext('2d');
+
+// State
+let clfPoints = []; // [{x, y, cls}] in [0,1]²
+let clfCurrentClass = 0;
+let clfDrawMode = 'point'; // 'point' or 'brush'
+let clfModel = 'knn';
+let clfBoundaryImg = null; // cached ImageData
+let clfBrushInterval = null;
+
+// DOM refs
+const clsBtns = document.querySelectorAll('.tool-btn[data-class]');
+const modeBtns = document.querySelectorAll('.tool-btn[data-mode]');
+const modelPills = document.querySelectorAll('.model-pill');
+const brushWrap = document.getElementById('brush-size-wrap');
+const slBrushSize = document.getElementById('sl-brush-size');
+const valBrushSize = document.getElementById('val-brush-size');
+const slK = document.getElementById('sl-k');
+const valK = document.getElementById('val-k');
+const slDepthDT = document.getElementById('sl-depth-dt');
+const valDepthDT = document.getElementById('val-depth-dt');
+const slDepthRF = document.getElementById('sl-depth-rf');
+const valDepthRF = document.getElementById('val-depth-rf');
+const slNtrees = document.getElementById('sl-ntrees');
+const valNtrees = document.getElementById('val-ntrees');
+const clfInfoCards = document.getElementById('clf-info-cards');
+
+// ---- Toolbar handlers ----
+clsBtns.forEach(b => b.addEventListener('click', () => {
+  clsBtns.forEach(bb => bb.classList.remove('active'));
+  b.classList.add('active');
+  clfCurrentClass = parseInt(b.dataset.class);
+}));
+
+modeBtns.forEach(b => b.addEventListener('click', () => {
+  modeBtns.forEach(bb => bb.classList.remove('active'));
+  b.classList.add('active');
+  clfDrawMode = b.dataset.mode;
+  brushWrap.style.display = clfDrawMode === 'brush' ? 'flex' : 'none';
+}));
+
+modelPills.forEach(b => b.addEventListener('click', () => {
+  modelPills.forEach(bb => bb.classList.remove('active'));
+  b.classList.add('active');
+  clfModel = b.dataset.model;
+  // Show/hide param rows
+  document.getElementById('param-k').classList.toggle('hidden', clfModel !== 'knn');
+  document.getElementById('param-depth-dt').classList.toggle('hidden', clfModel !== 'dt');
+  document.getElementById('param-depth-rf').classList.toggle('hidden', clfModel !== 'rf');
+  document.getElementById('param-ntrees').classList.toggle('hidden', clfModel !== 'rf');
+  fitAndDraw();
+}));
+
+slBrushSize.addEventListener('input', () => valBrushSize.textContent = slBrushSize.value);
+slK.addEventListener('input', () => { valK.textContent = slK.value; fitAndDraw(); });
+slDepthDT.addEventListener('input', () => { valDepthDT.textContent = slDepthDT.value; fitAndDraw(); });
+slDepthRF.addEventListener('input', () => { valDepthRF.textContent = slDepthRF.value; fitAndDraw(); });
+slNtrees.addEventListener('input', () => { valNtrees.textContent = slNtrees.value; fitAndDraw(); });
+
+document.getElementById('btn-clf-clear').addEventListener('click', () => {
+  clfPoints = [];
+  clfBoundaryImg = null;
+  drawCanvas();
+  updateClfInfo();
+});
+
+// ---- Canvas sizing ----
+function resizeClfCanvas() {
+  const wrap = clfCanvas.parentElement;
+  const w = wrap.clientWidth - 24; // minus padding
+  const size = Math.max(300, Math.min(w, 600));
+  clfCanvas.width = size;
+  clfCanvas.height = size;
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('tab-classifier').classList.contains('active')) {
+    resizeClfCanvas();
+    fitAndDraw();
+  }
+});
+
+// ---- Coord helpers ----
+function canvasToNorm(cx, cy) {
+  return { x: cx / clfCanvas.width, y: cy / clfCanvas.height };
+}
+function normToCanvas(nx, ny) {
+  return { x: nx * clfCanvas.width, y: ny * clfCanvas.height };
+}
+
+// ---- Drawing ----
+const CLF_COLORS = {
+  a: { point: '#3B7DD8', bg: [110, 160, 230] },
+  b: { point: '#D85050', bg: [230, 120, 120] },
+};
+
+function drawCanvas() {
+  const W = clfCanvas.width, H = clfCanvas.height;
+  clfCtx.clearRect(0, 0, W, H);
+
+  // Background grid
+  clfCtx.fillStyle = '#FAFCFE';
+  clfCtx.fillRect(0, 0, W, H);
+  clfCtx.strokeStyle = '#E7ECF2';
+  clfCtx.lineWidth = 1;
+  const step = W / 10;
+  for (let i = 1; i < 10; i++) {
+    clfCtx.beginPath();
+    clfCtx.moveTo(i * step, 0); clfCtx.lineTo(i * step, H);
+    clfCtx.stroke();
+    clfCtx.beginPath();
+    clfCtx.moveTo(0, i * step); clfCtx.lineTo(W, i * step);
+    clfCtx.stroke();
+  }
+
+  // Decision boundary (pre-rendered ImageData)
+  if (clfBoundaryImg) {
+    clfCtx.putImageData(clfBoundaryImg, 0, 0);
+    // Re-draw grid on top with low alpha
+    clfCtx.strokeStyle = 'rgba(200,210,220,0.3)';
+    for (let i = 1; i < 10; i++) {
+      clfCtx.beginPath();
+      clfCtx.moveTo(i * step, 0); clfCtx.lineTo(i * step, H);
+      clfCtx.stroke();
+      clfCtx.beginPath();
+      clfCtx.moveTo(0, i * step); clfCtx.lineTo(W, i * step);
+      clfCtx.stroke();
+    }
+  }
+
+  // Data points
+  for (const p of clfPoints) {
+    const { x: cx, y: cy } = normToCanvas(p.x, p.y);
+    clfCtx.beginPath();
+    clfCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+    clfCtx.fillStyle = p.cls === 0 ? CLF_COLORS.a.point : CLF_COLORS.b.point;
+    clfCtx.fill();
+    clfCtx.strokeStyle = 'white';
+    clfCtx.lineWidth = 1.5;
+    clfCtx.stroke();
+  }
+
+  updateClfInfo();
+}
+
+function updateClfInfo() {
+  const nA = clfPoints.filter(p => p.cls === 0).length;
+  const nB = clfPoints.filter(p => p.cls === 1).length;
+  let accText = '—';
+  if (clfBoundaryImg && clfPoints.length >= 2 && nA > 0 && nB > 0) {
+    // Compute training accuracy
+    let correct = 0;
+    for (const p of clfPoints) {
+      const pred = predictPoint(p.x, p.y);
+      if (pred === p.cls) correct++;
+    }
+    accText = (correct / clfPoints.length * 100).toFixed(1) + '%';
+  }
+  clfInfoCards.innerHTML = `
+    <div class="info-card" style="border-left: 6px solid ${CLF_COLORS.a.point};"><div class="card-title">CLASS A</div><div class="card-value" style="color:var(--text);">${nA}</div></div>
+    <div class="info-card" style="border-left: 6px solid ${CLF_COLORS.b.point};"><div class="card-title">CLASS B</div><div class="card-value" style="color:var(--text);">${nB}</div></div>
+    <div class="info-card" style="border-left: 6px solid var(--acc);"><div class="card-title">TRAIN ACCURACY</div><div class="card-value" style="color:var(--text);">${accText}</div></div>`;
+}
+
+// ---- Canvas mouse events ----
+function getCanvasPos(e) {
+  const r = clfCanvas.getBoundingClientRect();
+  return { cx: e.clientX - r.left, cy: e.clientY - r.top };
+}
+
+function addPoint(cx, cy) {
+  const { x, y } = canvasToNorm(cx, cy);
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  clfPoints.push({ x, y, cls: clfCurrentClass });
+}
+
+let brushRng = mulberry32(12345);
+
+function sprayBrush(cx, cy) {
+  const radius = parseInt(slBrushSize.value);
+  const nPoints = 3;
+  for (let i = 0; i < nPoints; i++) {
+    const angle = brushRng() * Math.PI * 2;
+    const r = Math.sqrt(brushRng()) * radius;
+    addPoint(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+  }
+}
+
+let isDrawing = false;
+
+clfCanvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  isDrawing = true;
+  const { cx, cy } = getCanvasPos(e);
+  if (clfDrawMode === 'point') {
+    addPoint(cx, cy);
+    fitAndDraw();
+  } else {
+    sprayBrush(cx, cy);
+    drawCanvas();
+    clfBrushInterval = setInterval(() => {
+      if (!isDrawing) return;
+      const rect = clfCanvas.getBoundingClientRect();
+      sprayBrush(lastMouseX - rect.left, lastMouseY - rect.top);
+      drawCanvas();
+    }, 50);
+  }
+});
+
+let lastMouseX = 0, lastMouseY = 0;
+clfCanvas.addEventListener('mousemove', (e) => {
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  if (!isDrawing) return;
+  const { cx, cy } = getCanvasPos(e);
+  if (clfDrawMode === 'point') {
+    // Don't add on drag in point mode
+  } else {
+    sprayBrush(cx, cy);
+    drawCanvas();
+  }
+});
+
+function stopDrawing() {
+  if (isDrawing && clfDrawMode === 'brush') {
+    fitAndDraw();
+  }
+  isDrawing = false;
+  if (clfBrushInterval) { clearInterval(clfBrushInterval); clfBrushInterval = null; }
+}
+
+clfCanvas.addEventListener('mouseup', stopDrawing);
+clfCanvas.addEventListener('mouseleave', stopDrawing);
+
+// ---- Touch support ----
+clfCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const { cx, cy } = getCanvasPos(t);
+  isDrawing = true;
+  if (clfDrawMode === 'point') {
+    addPoint(cx, cy);
+    fitAndDraw();
+  } else {
+    sprayBrush(cx, cy);
+    drawCanvas();
+  }
+}, { passive: false });
+
+clfCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!isDrawing) return;
+  const t = e.touches[0];
+  const { cx, cy } = getCanvasPos(t);
+  if (clfDrawMode === 'brush') {
+    sprayBrush(cx, cy);
+    drawCanvas();
+  }
+}, { passive: false });
+
+clfCanvas.addEventListener('touchend', stopDrawing);
+
+// ===========================
+// ML Algorithms
+// ===========================
+
+// ---- k-NN ----
+function knnPredict(qx, qy, points, k) {
+  const dists = points.map(p => ({
+    d: (p.x - qx) ** 2 + (p.y - qy) ** 2,
+    cls: p.cls,
+  }));
+  dists.sort((a, b) => a.d - b.d);
+  let votes = [0, 0];
+  for (let i = 0; i < Math.min(k, dists.length); i++) {
+    votes[dists[i].cls]++;
+  }
+  return votes[1] > votes[0] ? 1 : 0;
+}
+
+// ---- Decision Tree ----
+function giniImpurity(labels) {
+  if (labels.length === 0) return 0;
+  let c0 = 0;
+  for (const l of labels) { if (l === 0) c0++; }
+  const p0 = c0 / labels.length;
+  const p1 = 1 - p0;
+  return 1 - p0 * p0 - p1 * p1;
+}
+
+function majorityClass(labels) {
+  let c0 = 0;
+  for (const l of labels) { if (l === 0) c0++; }
+  return c0 >= labels.length - c0 ? 0 : 1;
+}
+
+function buildTree(points, depth, maxDepth) {
+  const labels = points.map(p => p.cls);
+  if (depth >= maxDepth || points.length <= 2 || giniImpurity(labels) === 0) {
+    return { leaf: true, prediction: majorityClass(labels) };
+  }
+
+  let bestGain = -1, bestFeature = 0, bestSplit = 0;
+  let bestLeft = [], bestRight = [];
+
+  for (const feature of [0, 1]) { // 0=x, 1=y
+    const vals = points.map(p => feature === 0 ? p.x : p.y).sort((a, b) => a - b);
+    // Try midpoints between unique sorted values
+    for (let i = 0; i < vals.length - 1; i++) {
+      if (vals[i] === vals[i + 1]) continue;
+      const split = (vals[i] + vals[i + 1]) / 2;
+      const left = points.filter(p => (feature === 0 ? p.x : p.y) <= split);
+      const right = points.filter(p => (feature === 0 ? p.x : p.y) > split);
+      if (left.length === 0 || right.length === 0) continue;
+
+      const parentGini = giniImpurity(labels);
+      const wl = left.length / points.length;
+      const wr = right.length / points.length;
+      const gain = parentGini - wl * giniImpurity(left.map(p => p.cls)) - wr * giniImpurity(right.map(p => p.cls));
+
+      if (gain > bestGain) {
+        bestGain = gain;
+        bestFeature = feature;
+        bestSplit = split;
+        bestLeft = left;
+        bestRight = right;
+      }
+    }
+  }
+
+  if (bestGain <= 0) {
+    return { leaf: true, prediction: majorityClass(labels) };
+  }
+
+  return {
+    leaf: false,
+    feature: bestFeature,
+    splitVal: bestSplit,
+    left: buildTree(bestLeft, depth + 1, maxDepth),
+    right: buildTree(bestRight, depth + 1, maxDepth),
+  };
+}
+
+function treePredictPoint(tree, x, y) {
+  if (tree.leaf) return tree.prediction;
+  const val = tree.feature === 0 ? x : y;
+  return val <= tree.splitVal
+    ? treePredictPoint(tree.left, x, y)
+    : treePredictPoint(tree.right, x, y);
+}
+
+// ---- Random Forest ----
+function buildForest(points, nTrees, maxDepth) {
+  const rng = mulberry32(42);
+  const trees = [];
+  for (let t = 0; t < nTrees; t++) {
+    // Bootstrap sample
+    const sample = [];
+    for (let i = 0; i < points.length; i++) {
+      sample.push(points[Math.floor(rng() * points.length)]);
+    }
+    trees.push(buildTree(sample, 0, maxDepth));
+  }
+  return trees;
+}
+
+function forestPredict(trees, x, y) {
+  let votes = [0, 0];
+  for (const tree of trees) {
+    votes[treePredictPoint(tree, x, y)]++;
+  }
+  return votes[1] > votes[0] ? 1 : 0;
+}
+
+// ===========================
+// Boundary computation + rendering
+// ===========================
+let currentTree = null;
+let currentForest = null;
+
+function predictPoint(x, y) {
+  if (clfModel === 'knn') {
+    return knnPredict(x, y, clfPoints, parseInt(slK.value));
+  } else if (clfModel === 'dt') {
+    return currentTree ? treePredictPoint(currentTree, x, y) : 0;
+  } else {
+    return currentForest ? forestPredict(currentForest, x, y) : 0;
+  }
+}
+
+function fitAndDraw() {
+  const nA = clfPoints.filter(p => p.cls === 0).length;
+  const nB = clfPoints.filter(p => p.cls === 1).length;
+
+  if (nA === 0 || nB === 0 || clfPoints.length < 2) {
+    clfBoundaryImg = null;
+    currentTree = null;
+    currentForest = null;
+    drawCanvas();
+    return;
+  }
+
+  // Build model
+  if (clfModel === 'dt') {
+    currentTree = buildTree(clfPoints, 0, parseInt(slDepthDT.value));
+  } else if (clfModel === 'rf') {
+    currentForest = buildForest(clfPoints, parseInt(slNtrees.value), parseInt(slDepthRF.value));
+  }
+
+  // Render boundary grid
+  const W = clfCanvas.width, H = clfCanvas.height;
+  const res = Math.min(80, W); // grid resolution
+  const cellW = W / res, cellH = H / res;
+  const imgData = clfCtx.createImageData(W, H);
+  const d = imgData.data;
+
+  // Fill with background color first
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = 250; d[i + 1] = 252; d[i + 2] = 254; d[i + 3] = 255;
+  }
+
+  for (let gy = 0; gy < res; gy++) {
+    const ny = (gy + 0.5) / res;
+    for (let gx = 0; gx < res; gx++) {
+      const nx = (gx + 0.5) / res;
+      const pred = predictPoint(nx, ny);
+      const bg = pred === 0 ? CLF_COLORS.a.bg : CLF_COLORS.b.bg;
+
+      // Fill the cell pixels
+      const x0 = Math.floor(gx * cellW);
+      const x1 = Math.floor((gx + 1) * cellW);
+      const y0 = Math.floor(gy * cellH);
+      const y1 = Math.floor((gy + 1) * cellH);
+
+      for (let py = y0; py < y1; py++) {
+        for (let px = x0; px < x1; px++) {
+          const idx = (py * W + px) * 4;
+          // Blend: alpha ≈ 0.18
+          d[idx]     = Math.round(250 * 0.82 + bg[0] * 0.18);
+          d[idx + 1] = Math.round(252 * 0.82 + bg[1] * 0.18);
+          d[idx + 2] = Math.round(254 * 0.82 + bg[2] * 0.18);
+          d[idx + 3] = 255;
+        }
+      }
+    }
+  }
+
+  clfBoundaryImg = imgData;
+  drawCanvas();
+}
 </script>
 </body>
 </html>
