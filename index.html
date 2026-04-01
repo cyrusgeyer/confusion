@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinical Threshold Tuner</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #F7F9FC;
+    --panel: #FFFFFF;
+    --text: #243447;
+    --muted: #6B7A90;
+    --border: #D9E2EC;
+    --healthy: #8FB9E3;
+    --disease: #D97C7C;
+    --threshold: #C98F2D;
+    --sens: #2A9D8F;
+    --spec: #5B6CFA;
+    --ppv: #B56576;
+    --acc: #5E9C76;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", "DejaVu Sans", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .header {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .controls-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .controls-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .controls-col h3 {
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 10px 0;
+    font-size: 14px;
+  }
+
+  .slider-group {
+    margin-bottom: 10px;
+  }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .slider-group label span.val {
+    font-weight: 400;
+    color: var(--muted);
+    min-width: 50px;
+    text-align: right;
+  }
+  .slider-group input[type="range"] {
+    width: 100%;
+    accent-color: var(--sens);
+    cursor: pointer;
+  }
+
+  .seed-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .seed-row label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .seed-row input[type="number"] {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .seed-row button {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .seed-row button:hover {
+    background: var(--bg);
+  }
+
+  .info-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .info-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 155px;
+    flex: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .info-card .card-title {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.6px;
+    font-weight: 700;
+  }
+  .info-card .card-value {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--panel);
+  }
+  .chart-cell {
+    min-height: 340px;
+  }
+
+  .threshold-strip {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 6px solid var(--threshold);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .threshold-strip .ts-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .threshold-strip .ts-label small {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .threshold-strip input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    height: 8px;
+    accent-color: var(--threshold);
+    cursor: pointer;
+  }
+  .threshold-strip .ts-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--threshold);
+    min-width: 60px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 900px) {
+    .controls-row { flex-direction: column; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .info-cards { flex-direction: column; }
+    .threshold-strip { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Clinical Threshold Tuner</h1>
+  <p>Interactive demonstration for medical students: explore how prevalence, model quality, calibration, and threshold choice affect sensitivity, specificity, PPV, and missed cases.</p>
+</div>
+
+<div class="controls-row">
+  <div class="controls-col">
+    <h3>Population &amp; disease model</h3>
+    <div class="slider-group">
+      <label>Patients <span class="val" id="val-n">1200</span></label>
+      <input type="range" id="sl-n" min="200" max="5000" step="100" value="1200">
+    </div>
+    <div class="slider-group">
+      <label>Prevalence <span class="val" id="val-prev">0.20</span></label>
+      <input type="range" id="sl-prev" min="0.05" max="0.80" step="0.01" value="0.20">
+    </div>
+    <div class="slider-group">
+      <label>Class separation <span class="val" id="val-sep">1.40</span></label>
+      <input type="range" id="sl-sep" min="0.20" max="3.00" step="0.05" value="1.40">
+    </div>
+    <div class="slider-group">
+      <label>Noise / overlap <span class="val" id="val-noise">1.00</span></label>
+      <input type="range" id="sl-noise" min="0.30" max="2.50" step="0.05" value="1.00">
+    </div>
+  </div>
+
+  <div class="controls-col">
+    <h3>Prediction model</h3>
+    <div class="slider-group">
+      <label>Prediction bias <span class="val" id="val-bias">0.00</span></label>
+      <input type="range" id="sl-bias" min="-2.00" max="2.00" step="0.05" value="0.00">
+    </div>
+    <div class="slider-group">
+      <label>Prediction sharpness <span class="val" id="val-scale">1.00</span></label>
+      <input type="range" id="sl-scale" min="0.40" max="2.50" step="0.05" value="1.00">
+    </div>
+    <div class="seed-row">
+      <label for="seed-input">Seed</label>
+      <input type="number" id="seed-input" value="42" min="0" max="99999">
+      <button id="btn-regen">Regenerate cohort</button>
+    </div>
+  </div>
+</div>
+
+<div class="info-cards" id="info-cards"></div>
+
+<div class="threshold-strip">
+  <div class="ts-label">Decision Threshold<small>Adjust the classification boundary</small></div>
+  <input type="range" id="sl-threshold" min="0.00" max="1.00" step="0.01" value="0.50">
+  <div class="ts-value" id="val-threshold">0.50</div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-cell" id="chart-hist"></div>
+  <div class="chart-cell" id="chart-cm"></div>
+  <div class="chart-cell" id="chart-roc"></div>
+  <div class="chart-cell" id="chart-tradeoff"></div>
+</div>
+
+<script>
+// ===========================
+// Seeded PRNG (mulberry32)
+// ===========================
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// Box-Muller transform: two uniform -> two normal
+function randNormal(rng) {
+  let u1 = rng(), u2 = rng();
+  while (u1 === 0) u1 = rng(); // avoid log(0)
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function sigmoid(x) {
+  return 1 / (1 + Math.exp(-x));
+}
+
+// ===========================
+// Synthetic data generator
+// ===========================
+function synthesizeData(n, prevalence, separation, noise, calibrationBias, calibrationScale, seed) {
+  const rng = mulberry32(seed);
+
+  const yTrue = new Array(n);
+  const yProb = new Array(n);
+
+  for (let i = 0; i < n; i++) {
+    yTrue[i] = rng() < prevalence ? 1 : 0;
+    const loc = yTrue[i] === 1 ? separation / 2 : -separation / 2;
+    const latent = loc + noise * randNormal(rng);
+    const logit = calibrationScale * latent + calibrationBias;
+    yProb[i] = sigmoid(logit);
+  }
+
+  return { yTrue, yProb };
+}
+
+// ===========================
+// Confusion matrix & metrics
+// ===========================
+function confusionMatrix(yTrue, yPred) {
+  let tp = 0, fp = 0, fn = 0, tn = 0;
+  for (let i = 0; i < yTrue.length; i++) {
+    if (yTrue[i] === 1 && yPred[i] === 1) tp++;
+    else if (yTrue[i] === 0 && yPred[i] === 1) fp++;
+    else if (yTrue[i] === 1 && yPred[i] === 0) fn++;
+    else tn++;
+  }
+  return { tn, fp, fn, tp };
+}
+
+// ===========================
+// ROC curve computation
+// ===========================
+function computeROC(yTrue, yProb) {
+  const n = yTrue.length;
+  const indices = Array.from({ length: n }, (_, i) => i);
+  indices.sort((a, b) => yProb[b] - yProb[a]); // descending by score
+
+  let totalPos = 0, totalNeg = 0;
+  for (let i = 0; i < n; i++) {
+    if (yTrue[i] === 1) totalPos++;
+    else totalNeg++;
+  }
+
+  if (totalPos === 0 || totalNeg === 0) {
+    return { fpr: [0, 1], tpr: [0, 1], auc: 0.5 };
+  }
+
+  const fprArr = [0], tprArr = [0];
+  let tpCount = 0, fpCount = 0;
+
+  for (let i = 0; i < n; i++) {
+    const idx = indices[i];
+    if (yTrue[idx] === 1) tpCount++;
+    else fpCount++;
+
+    // Only add a point when the score changes or at the end
+    if (i === n - 1 || yProb[indices[i]] !== yProb[indices[i + 1]]) {
+      fprArr.push(fpCount / totalNeg);
+      tprArr.push(tpCount / totalPos);
+    }
+  }
+
+  // Trapezoidal AUC
+  let auc = 0;
+  for (let i = 1; i < fprArr.length; i++) {
+    auc += (fprArr[i] - fprArr[i - 1]) * (tprArr[i] + tprArr[i - 1]) / 2;
+  }
+
+  return { fpr: fprArr, tpr: tprArr, auc };
+}
+
+// ===========================
+// Color constants
+// ===========================
+const C = {
+  healthy: '#8FB9E3', disease: '#D97C7C', threshold: '#C98F2D',
+  sens: '#2A9D8F', spec: '#5B6CFA', ppv: '#B56576', acc: '#5E9C76',
+  text: '#243447', muted: '#6B7A90', border: '#D9E2EC', panel: '#FFFFFF',
+  npv: '#7A8B99'
+};
+
+// ===========================
+// DOM references
+// ===========================
+const sliders = {
+  n:         document.getElementById('sl-n'),
+  prev:      document.getElementById('sl-prev'),
+  sep:       document.getElementById('sl-sep'),
+  noise:     document.getElementById('sl-noise'),
+  threshold: document.getElementById('sl-threshold'),
+  bias:      document.getElementById('sl-bias'),
+  scale:     document.getElementById('sl-scale'),
+};
+
+const valLabels = {
+  n:         document.getElementById('val-n'),
+  prev:      document.getElementById('val-prev'),
+  sep:       document.getElementById('val-sep'),
+  noise:     document.getElementById('val-noise'),
+  threshold: document.getElementById('val-threshold'),
+  bias:      document.getElementById('val-bias'),
+  scale:     document.getElementById('val-scale'),
+};
+
+const seedInput = document.getElementById('seed-input');
+const btnRegen  = document.getElementById('btn-regen');
+const infoCards = document.getElementById('info-cards');
+
+let currentSeed = 42;
+let chartsInitialized = false;
+
+// ===========================
+// Format helpers
+// ===========================
+function fmt(v, decimals) { return Number(v).toFixed(decimals); }
+
+// ===========================
+// Info card renderer
+// ===========================
+function renderInfoCards(sens, spec, ppv, npv, acc, auc, fn) {
+  const cards = [
+    { title: 'SENSITIVITY',     value: (sens * 100).toFixed(1) + '%', color: C.sens },
+    { title: 'SPECIFICITY',     value: (spec * 100).toFixed(1) + '%', color: C.spec },
+    { title: 'PPV',             value: (ppv  * 100).toFixed(1) + '%', color: C.ppv },
+    { title: 'NPV',             value: (npv  * 100).toFixed(1) + '%', color: C.npv },
+    { title: 'ACCURACY',        value: (acc  * 100).toFixed(1) + '%', color: C.acc },
+    { title: 'AUC',             value: auc.toFixed(3),                color: C.sens },
+    { title: 'MISSED CASES (FN)', value: String(fn),                  color: C.threshold },
+  ];
+
+  infoCards.innerHTML = cards.map(c => `
+    <div class="info-card" style="border-left: 6px solid ${c.color};">
+      <div class="card-title">${c.title}</div>
+      <div class="card-value" style="color: ${C.text};">${c.value}</div>
+    </div>
+  `).join('');
+}
+
+// ===========================
+// Plotly chart layout defaults
+// ===========================
+const layoutBase = {
+  font: { family: '"Segoe UI", "DejaVu Sans", system-ui, sans-serif', color: C.text },
+  paper_bgcolor: 'white',
+  plot_bgcolor: 'white',
+  margin: { t: 40, r: 20, b: 50, l: 55 },
+  xaxis: { gridcolor: '#E7ECF2', gridwidth: 1, linecolor: C.border, zeroline: false },
+  yaxis: { gridcolor: '#E7ECF2', gridwidth: 1, linecolor: C.border, zeroline: false },
+};
+
+const plotlyConfig = { responsive: true, displayModeBar: false };
+
+// ===========================
+// Main update
+// ===========================
+function updateDashboard() {
+  const n         = parseInt(sliders.n.value);
+  const prev      = parseFloat(sliders.prev.value);
+  const sep       = parseFloat(sliders.sep.value);
+  const noise     = parseFloat(sliders.noise.value);
+  const threshold = parseFloat(sliders.threshold.value);
+  const bias      = parseFloat(sliders.bias.value);
+  const scale     = parseFloat(sliders.scale.value);
+
+  // Update readouts
+  valLabels.n.textContent         = n;
+  valLabels.prev.textContent      = fmt(prev, 2);
+  valLabels.sep.textContent       = fmt(sep, 2);
+  valLabels.noise.textContent     = fmt(noise, 2);
+  valLabels.threshold.textContent = fmt(threshold, 2);
+  valLabels.bias.textContent      = fmt(bias, 2);
+  valLabels.scale.textContent     = fmt(scale, 2);
+
+  // Generate data
+  const { yTrue, yProb } = synthesizeData(n, prev, sep, noise, bias, scale, currentSeed);
+
+  // Classify
+  const yPred = yProb.map(p => p >= threshold ? 1 : 0);
+  const { tn, fp, fn, tp } = confusionMatrix(yTrue, yPred);
+
+  const sens = (tp + fn) > 0 ? tp / (tp + fn) : 0;
+  const spec = (tn + fp) > 0 ? tn / (tn + fp) : 0;
+  const ppv  = (tp + fp) > 0 ? tp / (tp + fp) : 0;
+  const npv  = (tn + fn) > 0 ? tn / (tn + fn) : 0;
+  const acc  = (tp + tn) / n;
+
+  // ROC
+  const roc = computeROC(yTrue, yProb);
+
+  renderInfoCards(sens, spec, ppv, npv, acc, roc.auc, fn);
+
+  // ---- Chart 1: Histogram ----
+  const probHealthy = [], probDisease = [];
+  for (let i = 0; i < n; i++) {
+    if (yTrue[i] === 0) probHealthy.push(yProb[i]);
+    else probDisease.push(yProb[i]);
+  }
+
+  const histTraces = [
+    {
+      x: probHealthy, type: 'histogram', name: 'No disease',
+      marker: { color: C.healthy, line: { color: 'white', width: 1 } },
+      opacity: 0.75,
+      xbins: { start: 0, end: 1, size: 0.05 },
+    },
+    {
+      x: probDisease, type: 'histogram', name: 'Disease',
+      marker: { color: C.disease, line: { color: 'white', width: 1 } },
+      opacity: 0.75,
+      xbins: { start: 0, end: 1, size: 0.05 },
+    },
+  ];
+
+  const histLayout = {
+    ...layoutBase,
+    title: { text: 'Predicted probability distribution', font: { size: 13, color: C.text } },
+    barmode: 'overlay',
+    xaxis: { ...layoutBase.xaxis, title: 'Predicted probability', range: [0, 1] },
+    yaxis: { ...layoutBase.yaxis, title: 'Number of patients' },
+    shapes: [
+      {
+        type: 'rect', x0: 0, x1: threshold, y0: 0, y1: 1, yref: 'paper',
+        fillcolor: 'rgba(91,108,250,0.10)', line: { width: 0 }, layer: 'below',
+      },
+      {
+        type: 'rect', x0: threshold, x1: 1, y0: 0, y1: 1, yref: 'paper',
+        fillcolor: 'rgba(217,124,124,0.10)', line: { width: 0 }, layer: 'below',
+      },
+      {
+        type: 'line', x0: threshold, x1: threshold, y0: 0, y1: 1, yref: 'paper',
+        line: { color: C.threshold, width: 2.5, dash: 'dash' },
+      },
+    ],
+    annotations: [
+      {
+        x: threshold, y: 1, yref: 'paper', text: `Threshold = ${fmt(threshold, 2)}`,
+        showarrow: false, yanchor: 'bottom', font: { color: C.threshold, size: 11 },
+      },
+      {
+        x: threshold, y: 0.5, yref: 'paper',
+        text: 'Classified Negative',
+        showarrow: false, xanchor: 'left', yanchor: 'middle',
+        textangle: -90, xshift: -18,
+        font: { color: 'rgba(91,108,250,0.45)', size: 12 },
+      },
+      {
+        x: threshold, y: 0.5, yref: 'paper',
+        text: 'Classified Positive',
+        showarrow: false, xanchor: 'right', yanchor: 'middle',
+        textangle: -90, xshift: 18,
+        font: { color: 'rgba(217,124,124,0.45)', size: 12 },
+      },
+    ],
+    legend: { x: 0.98, y: 0.98, xanchor: 'right', bgcolor: 'rgba(0,0,0,0)' },
+  };
+
+  // ---- Chart 2: Confusion Matrix ----
+  const cmZ = [[tn, fp], [fn, tp]];
+  const cmMax = Math.max(tn, fp, fn, tp);
+
+  const cmTrace = {
+    z: cmZ, type: 'heatmap',
+    x: ['Pred: neg', 'Pred: pos'],
+    y: ['True: neg', 'True: pos'],
+    colorscale: 'Blues', showscale: false,
+    zmin: 0,
+    hovertemplate: '%{y}<br>%{x}<br>Count: %{z}<extra></extra>',
+  };
+
+  const cmAnnotations = [];
+  for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < 2; j++) {
+      cmAnnotations.push({
+        x: j === 0 ? 'Pred: neg' : 'Pred: pos',
+        y: i === 0 ? 'True: neg' : 'True: pos',
+        text: String(cmZ[i][j]),
+        showarrow: false,
+        font: { size: 22, color: cmZ[i][j] > cmMax * 0.35 ? C.text : 'white', family: 'inherit' },
+      });
+    }
+  }
+
+  const cmLayout = {
+    ...layoutBase,
+    title: { text: 'Confusion matrix', font: { size: 13, color: C.text } },
+    xaxis: { ...layoutBase.xaxis, title: '', side: 'bottom' },
+    yaxis: { ...layoutBase.yaxis, title: '', autorange: 'reversed' },
+    margin: { t: 40, r: 20, b: 50, l: 80 },
+    annotations: cmAnnotations,
+  };
+
+  // ---- Optimal ROC point (closest to (0,1)) ----
+  let optFpr = roc.fpr[0], optTpr = roc.tpr[0], optDist = Infinity, optIdx = 0;
+  for (let i = 0; i < roc.fpr.length; i++) {
+    const d = Math.sqrt(roc.fpr[i] * roc.fpr[i] + (1 - roc.tpr[i]) * (1 - roc.tpr[i]));
+    if (d < optDist) { optDist = d; optFpr = roc.fpr[i]; optTpr = roc.tpr[i]; optIdx = i; }
+  }
+
+  // Find the threshold value that corresponds to the optimal ROC point
+  // Walk the sorted scores to find the score at optIdx
+  const sortedScores = yProb.slice().sort((a, b) => b - a);
+  let optThreshold = optIdx > 0 && optIdx <= sortedScores.length ? sortedScores[optIdx - 1] : 0.5;
+
+  // More robust: sweep thresholds and find the one minimizing distance to (0,1)
+  let bestOptTh = 0.5, bestOptDist2 = Infinity;
+  for (let k = 0; k <= 100; k++) {
+    const th = k / 100;
+    const yp = yProb.map(p => p >= th ? 1 : 0);
+    const c = confusionMatrix(yTrue, yp);
+    const s = (c.tp + c.fn) > 0 ? c.tp / (c.tp + c.fn) : 0;
+    const sp = (c.tn + c.fp) > 0 ? c.tn / (c.tn + c.fp) : 0;
+    const fpr1 = 1 - sp;
+    const d2 = fpr1 * fpr1 + (1 - s) * (1 - s);
+    if (d2 < bestOptDist2) { bestOptDist2 = d2; bestOptTh = th; }
+  }
+
+  // ---- Chart 3: ROC Curve ----
+  const rocTraces = [
+    {
+      x: roc.fpr, y: roc.tpr, type: 'scatter', mode: 'lines',
+      name: `AUC = ${roc.auc.toFixed(3)}`,
+      line: { color: C.sens, width: 2.5 },
+    },
+    {
+      x: [0, 1], y: [0, 1], type: 'scatter', mode: 'lines',
+      line: { color: '#A0AABA', width: 1.2, dash: 'dash' },
+      showlegend: false,
+    },
+    {
+      x: [1 - spec], y: [sens], type: 'scatter', mode: 'markers',
+      name: `Threshold (t=${fmt(threshold, 2)})`,
+      marker: { color: C.threshold, size: 12, line: { color: 'white', width: 1.5 } },
+    },
+    {
+      x: [optFpr], y: [optTpr], type: 'scatter', mode: 'markers',
+      name: `Youden's J (t=${fmt(bestOptTh, 2)})`,
+      marker: { color: '#E6437D', size: 12, symbol: 'star', line: { color: 'white', width: 1.5 } },
+    },
+  ];
+
+  const rocLayout = {
+    ...layoutBase,
+    title: { text: 'ROC curve', font: { size: 13, color: C.text } },
+    xaxis: { ...layoutBase.xaxis, title: 'False positive rate (1 − specificity)', range: [-0.02, 1.02] },
+    yaxis: { ...layoutBase.yaxis, title: 'True positive rate (sensitivity)', range: [-0.02, 1.02] },
+    annotations: [],
+    legend: { x: 0.98, y: 0.02, xanchor: 'right', yanchor: 'bottom', bgcolor: 'rgba(0,0,0,0)' },
+  };
+
+  // ---- Chart 4: Threshold trade-off ----
+  const nTh = 99;
+  const ths = [], sensList = [], specList = [], ppvList = [];
+  for (let k = 0; k < nTh; k++) {
+    const th = 0.01 + k * (0.98 / (nTh - 1));
+    ths.push(th);
+    const yp = yProb.map(p => p >= th ? 1 : 0);
+    const c = confusionMatrix(yTrue, yp);
+    sensList.push((c.tp + c.fn) > 0 ? c.tp / (c.tp + c.fn) : NaN);
+    specList.push((c.tn + c.fp) > 0 ? c.tn / (c.tn + c.fp) : NaN);
+    ppvList.push((c.tp + c.fp) > 0 ? c.tp / (c.tp + c.fp) : NaN);
+  }
+
+  const tradeoffTraces = [
+    { x: ths, y: sensList, type: 'scatter', mode: 'lines', name: 'Sensitivity', line: { color: C.sens, width: 2.2 } },
+    { x: ths, y: specList, type: 'scatter', mode: 'lines', name: 'Specificity', line: { color: C.spec, width: 2.2 } },
+    { x: ths, y: ppvList,  type: 'scatter', mode: 'lines', name: 'PPV',         line: { color: C.ppv,  width: 2.2 } },
+  ];
+
+  const tradeoffLayout = {
+    ...layoutBase,
+    title: { text: 'Trade-offs across thresholds', font: { size: 13, color: C.text } },
+    xaxis: { ...layoutBase.xaxis, title: 'Decision threshold', range: [0, 1] },
+    yaxis: { ...layoutBase.yaxis, title: 'Metric value', range: [0, 1.02] },
+    shapes: [
+      {
+        type: 'line', x0: threshold, x1: threshold, y0: 0, y1: 1.02,
+        line: { color: C.threshold, width: 2, dash: 'dash' },
+      },
+      {
+        type: 'line', x0: bestOptTh, x1: bestOptTh, y0: 0, y1: 1.02,
+        line: { color: '#E6437D', width: 1.5, dash: 'dot' },
+      },
+    ],
+    annotations: [{
+      x: bestOptTh, y: 1.02, text: "Youden's J", showarrow: false, yanchor: 'bottom',
+      font: { color: '#E6437D', size: 10 },
+    }],
+    legend: { x: 0.98, y: 0.02, xanchor: 'right', yanchor: 'bottom', bgcolor: 'rgba(0,0,0,0)' },
+  };
+
+  // ---- Render ----
+  const fn_plot = chartsInitialized ? Plotly.react : Plotly.newPlot;
+  fn_plot('chart-hist',     histTraces,      histLayout,      plotlyConfig);
+  fn_plot('chart-cm',       [cmTrace],       cmLayout,        plotlyConfig);
+  fn_plot('chart-roc',      rocTraces,       rocLayout,       plotlyConfig);
+  fn_plot('chart-tradeoff', tradeoffTraces,  tradeoffLayout,  plotlyConfig);
+  chartsInitialized = true;
+}
+
+// ===========================
+// Event wiring
+// ===========================
+Object.values(sliders).forEach(sl => sl.addEventListener('input', updateDashboard));
+
+btnRegen.addEventListener('click', () => {
+  currentSeed = parseInt(seedInput.value) || 0;
+  updateDashboard();
+});
+
+// Initial render
+updateDashboard();
+</script>
+</body>
+</html>
