@@ -405,6 +405,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="tab-threshold">Threshold Tuner</button>
   <button class="tab-btn" data-tab="tab-classifier">Classification Playground</button>
+  <button class="tab-btn" data-tab="tab-clustering">Clustering Playground</button>
 </div>
 
 <div id="tab-threshold" class="tab-content active">
@@ -540,6 +541,89 @@
   </div>
 </div>
 </div><!-- end tab-classifier -->
+
+<div id="tab-clustering" class="tab-content">
+<div class="clf-toolbar">
+  <div class="tool-group">
+    <button class="tool-btn active" data-clust-mode="point">Point</button>
+    <button class="tool-btn" data-clust-mode="brush">Brush</button>
+  </div>
+  <div class="brush-size-wrap" id="clust-brush-size-wrap" style="display:none;">
+    <span>Size</span>
+    <input type="range" id="sl-clust-brush-size" min="10" max="40" step="2" value="24">
+    <span class="val" id="val-clust-brush-size">24</span>
+  </div>
+  <button class="clear-btn" id="btn-clust-clear">Clear All</button>
+</div>
+
+<div class="clf-main">
+  <div class="clf-canvas-wrap">
+    <canvas id="clust-canvas" width="600" height="600"></canvas>
+  </div>
+  <div class="clf-sidebar">
+    <div class="clf-panel">
+      <h3>Algorithm</h3>
+      <div class="model-pills">
+        <button class="model-pill active" data-clust="kmeans">K-Means</button>
+        <button class="model-pill" data-clust="hierarchical">Hierarchical</button>
+        <button class="model-pill" data-clust="dbscan">DBSCAN</button>
+      </div>
+      <!-- K-Means params -->
+      <div class="param-row" id="param-kmeans-k">
+        <div class="slider-group">
+          <label>k (clusters) <span class="val" id="val-kmeans-k">3</span></label>
+          <input type="range" id="sl-kmeans-k" min="2" max="10" step="1" value="3">
+        </div>
+      </div>
+      <div class="param-row" id="param-kmeans-seed">
+        <div class="seed-row">
+          <label for="kmeans-seed-input">Seed</label>
+          <input type="number" id="kmeans-seed-input" value="42" min="0" max="99999">
+          <button id="btn-kmeans-reseed">Re-run</button>
+        </div>
+      </div>
+      <!-- Hierarchical params -->
+      <div class="param-row hidden" id="param-hier-k">
+        <div class="slider-group">
+          <label>Clusters <span class="val" id="val-hier-k">3</span></label>
+          <input type="range" id="sl-hier-k" min="2" max="10" step="1" value="3">
+        </div>
+      </div>
+      <div class="param-row hidden" id="param-hier-linkage">
+        <div class="slider-group">
+          <label>Linkage</label>
+          <select id="sel-hier-linkage" style="width:100%;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:var(--panel);color:var(--text);">
+            <option value="single">Single</option>
+            <option value="complete" selected>Complete</option>
+            <option value="average">Average</option>
+          </select>
+        </div>
+      </div>
+      <!-- DBSCAN params -->
+      <div class="param-row hidden" id="param-dbscan-eps">
+        <div class="slider-group">
+          <label>Epsilon (ε) <span class="val" id="val-dbscan-eps">0.08</span></label>
+          <input type="range" id="sl-dbscan-eps" min="0.02" max="0.30" step="0.01" value="0.08">
+        </div>
+      </div>
+      <div class="param-row hidden" id="param-dbscan-minpts">
+        <div class="slider-group">
+          <label>Min points <span class="val" id="val-dbscan-minpts">5</span></label>
+          <input type="range" id="sl-dbscan-minpts" min="2" max="20" step="1" value="5">
+        </div>
+      </div>
+    </div>
+    <div class="clf-panel">
+      <h3>Info</h3>
+      <div class="clf-info-cards" id="clust-info-cards">
+        <div class="info-card" style="border-left: 6px solid var(--border);"><div class="card-title">POINTS</div><div class="card-value" style="color:var(--text);">0</div></div>
+        <div class="info-card" style="border-left: 6px solid var(--sens);"><div class="card-title">CLUSTERS</div><div class="card-value" style="color:var(--text);">0</div></div>
+        <div class="info-card" style="border-left: 6px solid var(--muted);"><div class="card-title">NOISE POINTS</div><div class="card-value" style="color:var(--text);">&mdash;</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end tab-clustering -->
 
 <script>
 // ===========================
@@ -995,6 +1079,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       clfInitialized = true;
       resizeClfCanvas();
       drawCanvas();
+    }
+    if (btn.dataset.tab === 'tab-clustering' && !clustInitialized) {
+      clustInitialized = true;
+      resizeClustCanvas();
+      drawClustCanvas();
     }
   });
 });
@@ -1472,6 +1561,582 @@ function fitAndDraw() {
 
   clfBoundaryImg = imgData;
   drawCanvas();
+}
+
+// ===========================
+// Clustering Playground
+// ===========================
+let clustInitialized = false;
+const clustCanvas = document.getElementById('clust-canvas');
+const clustCtx = clustCanvas.getContext('2d');
+
+let clustPoints = [];
+let clustAlgo = 'kmeans';
+let clustDrawMode = 'point';
+let clustBoundaryImg = null;
+let clustAssignments = [];
+let clustCentroids = [];
+let clustCoreIndices = [];
+let clustBrushInterval = null;
+
+const CLUSTER_PALETTE = [
+  [59, 125, 216], [216, 80, 80], [42, 157, 143], [230, 67, 125], [91, 108, 250],
+  [201, 143, 45], [139, 92, 246], [5, 150, 105], [219, 39, 119], [234, 88, 12],
+];
+const CLUSTER_COLORS_HEX = CLUSTER_PALETTE.map(c => `rgb(${c[0]},${c[1]},${c[2]})`);
+const NOISE_COLOR = '#999999';
+
+const clustModeBtns = document.querySelectorAll('[data-clust-mode]');
+const clustAlgoPills = document.querySelectorAll('[data-clust]');
+const clustBrushWrap = document.getElementById('clust-brush-size-wrap');
+const slClustBrushSize = document.getElementById('sl-clust-brush-size');
+const valClustBrushSize = document.getElementById('val-clust-brush-size');
+const clustInfoCards = document.getElementById('clust-info-cards');
+
+const slKmeansK = document.getElementById('sl-kmeans-k');
+const valKmeansK = document.getElementById('val-kmeans-k');
+const kmeansSeedInput = document.getElementById('kmeans-seed-input');
+const slHierK = document.getElementById('sl-hier-k');
+const valHierK = document.getElementById('val-hier-k');
+const selHierLinkage = document.getElementById('sel-hier-linkage');
+const slDbscanEps = document.getElementById('sl-dbscan-eps');
+const valDbscanEps = document.getElementById('val-dbscan-eps');
+const slDbscanMinpts = document.getElementById('sl-dbscan-minpts');
+const valDbscanMinpts = document.getElementById('val-dbscan-minpts');
+
+// ---- Toolbar handlers ----
+clustModeBtns.forEach(b => b.addEventListener('click', () => {
+  clustModeBtns.forEach(bb => bb.classList.remove('active'));
+  b.classList.add('active');
+  clustDrawMode = b.dataset.clustMode;
+  clustBrushWrap.style.display = clustDrawMode === 'brush' ? 'flex' : 'none';
+}));
+
+clustAlgoPills.forEach(b => b.addEventListener('click', () => {
+  clustAlgoPills.forEach(bb => bb.classList.remove('active'));
+  b.classList.add('active');
+  clustAlgo = b.dataset.clust;
+  document.getElementById('param-kmeans-k').classList.toggle('hidden', clustAlgo !== 'kmeans');
+  document.getElementById('param-kmeans-seed').classList.toggle('hidden', clustAlgo !== 'kmeans');
+  document.getElementById('param-hier-k').classList.toggle('hidden', clustAlgo !== 'hierarchical');
+  document.getElementById('param-hier-linkage').classList.toggle('hidden', clustAlgo !== 'hierarchical');
+  document.getElementById('param-dbscan-eps').classList.toggle('hidden', clustAlgo !== 'dbscan');
+  document.getElementById('param-dbscan-minpts').classList.toggle('hidden', clustAlgo !== 'dbscan');
+  clustFitAndDraw();
+}));
+
+slClustBrushSize.addEventListener('input', () => valClustBrushSize.textContent = slClustBrushSize.value);
+slKmeansK.addEventListener('input', () => { valKmeansK.textContent = slKmeansK.value; clustFitAndDraw(); });
+document.getElementById('btn-kmeans-reseed').addEventListener('click', () => clustFitAndDraw());
+slHierK.addEventListener('input', () => { valHierK.textContent = slHierK.value; clustFitAndDraw(); });
+selHierLinkage.addEventListener('change', () => clustFitAndDraw());
+slDbscanEps.addEventListener('input', () => { valDbscanEps.textContent = slDbscanEps.value; clustFitAndDraw(); });
+slDbscanMinpts.addEventListener('input', () => { valDbscanMinpts.textContent = slDbscanMinpts.value; clustFitAndDraw(); });
+
+document.getElementById('btn-clust-clear').addEventListener('click', () => {
+  clustPoints = [];
+  clustAssignments = [];
+  clustCentroids = [];
+  clustCoreIndices = [];
+  clustBoundaryImg = null;
+  drawClustCanvas();
+  updateClustInfo();
+});
+
+// ---- Canvas sizing ----
+function resizeClustCanvas() {
+  const wrap = clustCanvas.parentElement;
+  const w = wrap.clientWidth - 24;
+  const size = Math.max(300, Math.min(w, 600));
+  clustCanvas.width = size;
+  clustCanvas.height = size;
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('tab-clustering').classList.contains('active')) {
+    resizeClustCanvas();
+    clustFitAndDraw();
+  }
+});
+
+function clustCanvasToNorm(cx, cy) {
+  return { x: cx / clustCanvas.width, y: cy / clustCanvas.height };
+}
+function clustNormToCanvas(nx, ny) {
+  return { x: nx * clustCanvas.width, y: ny * clustCanvas.height };
+}
+
+// ---- Drawing ----
+function drawClustCanvas() {
+  const W = clustCanvas.width, H = clustCanvas.height;
+  clustCtx.clearRect(0, 0, W, H);
+  clustCtx.fillStyle = '#FAFCFE';
+  clustCtx.fillRect(0, 0, W, H);
+
+  clustCtx.strokeStyle = '#E7ECF2';
+  clustCtx.lineWidth = 1;
+  const step = W / 10;
+  for (let i = 1; i < 10; i++) {
+    clustCtx.beginPath();
+    clustCtx.moveTo(i * step, 0); clustCtx.lineTo(i * step, H);
+    clustCtx.stroke();
+    clustCtx.beginPath();
+    clustCtx.moveTo(0, i * step); clustCtx.lineTo(W, i * step);
+    clustCtx.stroke();
+  }
+
+  if (clustBoundaryImg) {
+    clustCtx.putImageData(clustBoundaryImg, 0, 0);
+    clustCtx.strokeStyle = 'rgba(200,210,220,0.3)';
+    for (let i = 1; i < 10; i++) {
+      clustCtx.beginPath();
+      clustCtx.moveTo(i * step, 0); clustCtx.lineTo(i * step, H);
+      clustCtx.stroke();
+      clustCtx.beginPath();
+      clustCtx.moveTo(0, i * step); clustCtx.lineTo(W, i * step);
+      clustCtx.stroke();
+    }
+  }
+
+  for (let i = 0; i < clustPoints.length; i++) {
+    const p = clustPoints[i];
+    const { x: cx, y: cy } = clustNormToCanvas(p.x, p.y);
+    const clIdx = clustAssignments[i] !== undefined ? clustAssignments[i] : -1;
+    clustCtx.beginPath();
+    clustCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+    if (clIdx === -1) {
+      clustCtx.fillStyle = NOISE_COLOR;
+      clustCtx.fill();
+      clustCtx.strokeStyle = '#666';
+      clustCtx.lineWidth = 1.5;
+      clustCtx.stroke();
+    } else {
+      clustCtx.fillStyle = CLUSTER_COLORS_HEX[clIdx % CLUSTER_PALETTE.length];
+      clustCtx.fill();
+      clustCtx.strokeStyle = 'white';
+      clustCtx.lineWidth = 1.5;
+      clustCtx.stroke();
+    }
+  }
+
+  if (clustAlgo === 'kmeans' && clustCentroids.length > 0) {
+    for (let i = 0; i < clustCentroids.length; i++) {
+      const c = clustCentroids[i];
+      const { x: cx, y: cy } = clustNormToCanvas(c.x, c.y);
+      clustCtx.beginPath();
+      clustCtx.arc(cx, cy, 8, 0, Math.PI * 2);
+      clustCtx.fillStyle = CLUSTER_COLORS_HEX[i % CLUSTER_PALETTE.length];
+      clustCtx.fill();
+      clustCtx.strokeStyle = 'white';
+      clustCtx.lineWidth = 2.5;
+      clustCtx.stroke();
+      clustCtx.strokeStyle = 'white';
+      clustCtx.lineWidth = 2;
+      clustCtx.beginPath();
+      clustCtx.moveTo(cx - 5, cy); clustCtx.lineTo(cx + 5, cy);
+      clustCtx.moveTo(cx, cy - 5); clustCtx.lineTo(cx, cy + 5);
+      clustCtx.stroke();
+    }
+  }
+
+  updateClustInfo();
+}
+
+function updateClustInfo() {
+  const total = clustPoints.length;
+  const nClusters = new Set(clustAssignments.filter(a => a >= 0)).size;
+  const nNoise = clustAssignments.filter(a => a === -1).length;
+  const noiseDisplay = clustAlgo === 'dbscan' ? String(nNoise) : '\u2014';
+  const countColor = total >= MAX_POINTS ? '#D85050' : 'var(--muted)';
+  clustInfoCards.innerHTML = `
+    <div class="info-card" style="border-left: 6px solid var(--border);"><div class="card-title">POINTS</div><div class="card-value" style="color:${countColor};">${total} / ${MAX_POINTS}</div></div>
+    <div class="info-card" style="border-left: 6px solid var(--sens);"><div class="card-title">CLUSTERS</div><div class="card-value" style="color:var(--text);">${nClusters}</div></div>
+    <div class="info-card" style="border-left: 6px solid var(--muted);"><div class="card-title">NOISE POINTS</div><div class="card-value" style="color:var(--text);">${noiseDisplay}</div></div>`;
+}
+
+// ---- Canvas mouse events ----
+function getClustCanvasPos(e) {
+  const r = clustCanvas.getBoundingClientRect();
+  const scaleX = clustCanvas.width / r.width;
+  const scaleY = clustCanvas.height / r.height;
+  return { cx: (e.clientX - r.left) * scaleX, cy: (e.clientY - r.top) * scaleY };
+}
+
+function addClustPoint(cx, cy) {
+  if (clustPoints.length >= MAX_POINTS) return;
+  const { x, y } = clustCanvasToNorm(cx, cy);
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  clustPoints.push({ x, y });
+}
+
+let clustBrushRng = mulberry32(54321);
+
+function sprayClustBrush(cx, cy) {
+  const rect = clustCanvas.getBoundingClientRect();
+  const scale = clustCanvas.width / rect.width;
+  const radius = parseInt(slClustBrushSize.value) * scale * 2;
+  const angle = clustBrushRng() * Math.PI * 2;
+  const r = Math.sqrt(clustBrushRng()) * radius;
+  addClustPoint(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+}
+
+let isClustDrawing = false;
+let lastClustMouseX = 0, lastClustMouseY = 0;
+
+clustCanvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  isClustDrawing = true;
+  const { cx, cy } = getClustCanvasPos(e);
+  if (clustDrawMode === 'point') {
+    addClustPoint(cx, cy);
+    clustFitAndDraw();
+  } else {
+    sprayClustBrush(cx, cy);
+    drawClustCanvas();
+    clustBrushInterval = setInterval(() => {
+      if (!isClustDrawing) return;
+      const rect = clustCanvas.getBoundingClientRect();
+      const scaleX = clustCanvas.width / rect.width;
+      const scaleY = clustCanvas.height / rect.height;
+      sprayClustBrush((lastClustMouseX - rect.left) * scaleX, (lastClustMouseY - rect.top) * scaleY);
+      drawClustCanvas();
+    }, 120);
+  }
+});
+
+clustCanvas.addEventListener('mousemove', (e) => {
+  lastClustMouseX = e.clientX;
+  lastClustMouseY = e.clientY;
+  if (!isClustDrawing || clustDrawMode === 'point') return;
+  const { cx, cy } = getClustCanvasPos(e);
+  sprayClustBrush(cx, cy);
+  drawClustCanvas();
+});
+
+function stopClustDrawing() {
+  if (isClustDrawing && clustDrawMode === 'brush') {
+    clustFitAndDraw();
+  }
+  isClustDrawing = false;
+  if (clustBrushInterval) { clearInterval(clustBrushInterval); clustBrushInterval = null; }
+}
+
+clustCanvas.addEventListener('mouseup', stopClustDrawing);
+clustCanvas.addEventListener('mouseleave', stopClustDrawing);
+
+clustCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const { cx, cy } = getClustCanvasPos(t);
+  isClustDrawing = true;
+  if (clustDrawMode === 'point') {
+    addClustPoint(cx, cy);
+    clustFitAndDraw();
+  } else {
+    sprayClustBrush(cx, cy);
+    drawClustCanvas();
+  }
+}, { passive: false });
+
+clustCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!isClustDrawing) return;
+  const t = e.touches[0];
+  const { cx, cy } = getClustCanvasPos(t);
+  if (clustDrawMode === 'brush') {
+    sprayClustBrush(cx, cy);
+    drawClustCanvas();
+  }
+}, { passive: false });
+
+clustCanvas.addEventListener('touchend', stopClustDrawing);
+
+// ===========================
+// Clustering Algorithms
+// ===========================
+
+function eucDist(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+// ---- K-Means (k-means++ init) ----
+function kMeans(points, k, seed, maxIter) {
+  maxIter = maxIter || 50;
+  const n = points.length;
+  if (n === 0 || k <= 0) return { assignments: [], centroids: [] };
+  k = Math.min(k, n);
+  const rng = mulberry32(seed);
+
+  const centroids = [];
+  let idx = Math.floor(rng() * n);
+  centroids.push({ x: points[idx].x, y: points[idx].y });
+
+  for (let c = 1; c < k; c++) {
+    const dists = points.map(p => {
+      let minD = Infinity;
+      for (const cent of centroids) {
+        const d = (p.x - cent.x) ** 2 + (p.y - cent.y) ** 2;
+        if (d < minD) minD = d;
+      }
+      return minD;
+    });
+    const totalDist = dists.reduce((s, d) => s + d, 0);
+    if (totalDist === 0) {
+      centroids.push({ x: points[Math.floor(rng() * n)].x, y: points[Math.floor(rng() * n)].y });
+    } else {
+      let r = rng() * totalDist;
+      for (let i = 0; i < n; i++) {
+        r -= dists[i];
+        if (r <= 0) { centroids.push({ x: points[i].x, y: points[i].y }); break; }
+      }
+      if (centroids.length < c + 1) centroids.push({ x: points[n - 1].x, y: points[n - 1].y });
+    }
+  }
+
+  let assignments = new Array(n).fill(0);
+  for (let iter = 0; iter < maxIter; iter++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      let bestC = 0, bestD = Infinity;
+      for (let c = 0; c < k; c++) {
+        const d = (points[i].x - centroids[c].x) ** 2 + (points[i].y - centroids[c].y) ** 2;
+        if (d < bestD) { bestD = d; bestC = c; }
+      }
+      if (assignments[i] !== bestC) { changed = true; assignments[i] = bestC; }
+    }
+    if (!changed) break;
+    for (let c = 0; c < k; c++) {
+      let sx = 0, sy = 0, cnt = 0;
+      for (let i = 0; i < n; i++) {
+        if (assignments[i] === c) { sx += points[i].x; sy += points[i].y; cnt++; }
+      }
+      if (cnt > 0) { centroids[c].x = sx / cnt; centroids[c].y = sy / cnt; }
+    }
+  }
+  return { assignments, centroids };
+}
+
+// ---- Hierarchical Agglomerative Clustering ----
+function hierarchicalClustering(points, nClusters, linkage) {
+  const n = points.length;
+  if (n === 0) return [];
+  if (n <= nClusters) return points.map((_, i) => i);
+
+  const clusters = points.map((_, i) => [i]);
+  const active = new Set(Array.from({ length: n }, (_, i) => i));
+
+  const distMatrix = new Float32Array(n * n);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const d = eucDist(points[i], points[j]);
+      distMatrix[i * n + j] = d;
+      distMatrix[j * n + i] = d;
+    }
+  }
+
+  function clusterDist(c1, c2) {
+    const pts1 = clusters[c1], pts2 = clusters[c2];
+    if (linkage === 'single') {
+      let minD = Infinity;
+      for (const i of pts1) for (const j of pts2) { const d = distMatrix[i * n + j]; if (d < minD) minD = d; }
+      return minD;
+    } else if (linkage === 'complete') {
+      let maxD = 0;
+      for (const i of pts1) for (const j of pts2) { const d = distMatrix[i * n + j]; if (d > maxD) maxD = d; }
+      return maxD;
+    } else {
+      let sum = 0, cnt = 0;
+      for (const i of pts1) for (const j of pts2) { sum += distMatrix[i * n + j]; cnt++; }
+      return cnt > 0 ? sum / cnt : 0;
+    }
+  }
+
+  while (active.size > nClusters) {
+    let bestI = -1, bestJ = -1, bestD = Infinity;
+    const activeArr = Array.from(active);
+    for (let ai = 0; ai < activeArr.length; ai++) {
+      for (let aj = ai + 1; aj < activeArr.length; aj++) {
+        const d = clusterDist(activeArr[ai], activeArr[aj]);
+        if (d < bestD) { bestD = d; bestI = activeArr[ai]; bestJ = activeArr[aj]; }
+      }
+    }
+    clusters[bestI] = clusters[bestI].concat(clusters[bestJ]);
+    clusters[bestJ] = [];
+    active.delete(bestJ);
+  }
+
+  const assignments = new Array(n).fill(0);
+  let clusterIdx = 0;
+  for (const cId of active) {
+    for (const pIdx of clusters[cId]) { assignments[pIdx] = clusterIdx; }
+    clusterIdx++;
+  }
+  return assignments;
+}
+
+// ---- DBSCAN ----
+function dbscan(points, eps, minPts) {
+  const n = points.length;
+  if (n === 0) return { assignments: [], coreIndices: [] };
+  const assignments = new Array(n).fill(-1);
+  const isCore = new Array(n).fill(false);
+  let clusterId = 0;
+  const visited = new Array(n).fill(false);
+
+  function regionQuery(idx) {
+    const neighbors = [];
+    for (let i = 0; i < n; i++) {
+      if (eucDist(points[idx], points[i]) <= eps) neighbors.push(i);
+    }
+    return neighbors;
+  }
+
+  for (let i = 0; i < n; i++) {
+    if (visited[i]) continue;
+    visited[i] = true;
+    const neighbors = regionQuery(i);
+    if (neighbors.length < minPts) continue;
+
+    isCore[i] = true;
+    assignments[i] = clusterId;
+    const queue = [...neighbors];
+    const inQueue = new Set(neighbors);
+    let qi = 0;
+    while (qi < queue.length) {
+      const j = queue[qi++];
+      if (!visited[j]) {
+        visited[j] = true;
+        const jNeighbors = regionQuery(j);
+        if (jNeighbors.length >= minPts) {
+          isCore[j] = true;
+          for (const nn of jNeighbors) {
+            if (!inQueue.has(nn)) { queue.push(nn); inQueue.add(nn); }
+          }
+        }
+      }
+      if (assignments[j] === -1) assignments[j] = clusterId;
+    }
+    clusterId++;
+  }
+  const coreIndices = [];
+  for (let i = 0; i < n; i++) { if (isCore[i]) coreIndices.push(i); }
+  return { assignments, coreIndices };
+}
+
+// ===========================
+// Fit + render clustering
+// ===========================
+function clustFitAndDraw() {
+  if (clustPoints.length < 2) {
+    clustAssignments = [];
+    clustCentroids = [];
+    clustBoundaryImg = null;
+    drawClustCanvas();
+    return;
+  }
+
+  if (clustAlgo === 'kmeans') {
+    const k = parseInt(slKmeansK.value);
+    const seed = parseInt(kmeansSeedInput.value) || 42;
+    const result = kMeans(clustPoints, k, seed);
+    clustAssignments = result.assignments;
+    clustCentroids = result.centroids;
+  } else if (clustAlgo === 'hierarchical') {
+    const nC = parseInt(slHierK.value);
+    const linkage = selHierLinkage.value;
+    clustAssignments = hierarchicalClustering(clustPoints, nC, linkage);
+    clustCentroids = [];
+  } else if (clustAlgo === 'dbscan') {
+    const eps = parseFloat(slDbscanEps.value);
+    const minPts = parseInt(slDbscanMinpts.value);
+    const dbResult = dbscan(clustPoints, eps, minPts);
+    clustAssignments = dbResult.assignments;
+    clustCoreIndices = dbResult.coreIndices;
+    clustCentroids = [];
+  }
+
+  renderClustBoundary();
+  drawClustCanvas();
+}
+
+function renderClustBoundary() {
+  const W = clustCanvas.width, H = clustCanvas.height;
+  const nClusters = new Set(clustAssignments.filter(a => a >= 0)).size;
+  if (nClusters === 0) { clustBoundaryImg = null; return; }
+
+  // Build list of labeled points (exclude noise for DBSCAN)
+  const labeled = [];
+  for (let i = 0; i < clustPoints.length; i++) {
+    if (clustAssignments[i] >= 0) {
+      labeled.push({ x: clustPoints[i].x, y: clustPoints[i].y, cls: clustAssignments[i] });
+    }
+  }
+  if (labeled.length === 0) { clustBoundaryImg = null; return; }
+
+  // Background strategy per algorithm:
+  // - K-Means: Voronoi on centroids (exact — new points go to nearest centroid)
+  // - Hierarchical: 1-NN on labeled points (no standard predict; this is reasonable)
+  // - DBSCAN: Only color within ε of a core point (assigned to nearest core point's
+  //   cluster). Beyond ε of any core point → uncolored (noise). This reflects that
+  //   DBSCAN has no general predict — only core-point neighborhoods define clusters.
+
+  // For DBSCAN, build core-point lookup
+  const dbscanCorePoints = [];
+  if (clustAlgo === 'dbscan') {
+    const eps = parseFloat(slDbscanEps.value);
+    for (const ci of clustCoreIndices) {
+      dbscanCorePoints.push({ x: clustPoints[ci].x, y: clustPoints[ci].y, cls: clustAssignments[ci], eps });
+    }
+  }
+
+  const res = 80;
+  const cellW = W / res, cellH = H / res;
+  const imgData = clustCtx.createImageData(W, H);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) { d[i] = 250; d[i+1] = 252; d[i+2] = 254; d[i+3] = 255; }
+
+  for (let gy = 0; gy < res; gy++) {
+    const ny = (gy + 0.5) / res;
+    for (let gx = 0; gx < res; gx++) {
+      const nx = (gx + 0.5) / res;
+      let bestC = -1, bestD = Infinity;
+
+      if (clustAlgo === 'kmeans' && clustCentroids.length > 0) {
+        // Voronoi on centroids
+        for (let c = 0; c < clustCentroids.length; c++) {
+          const dist = (nx - clustCentroids[c].x) ** 2 + (ny - clustCentroids[c].y) ** 2;
+          if (dist < bestD) { bestD = dist; bestC = c; }
+        }
+      } else if (clustAlgo === 'dbscan') {
+        // Only color if within ε of nearest core point
+        for (const cp of dbscanCorePoints) {
+          const dist = Math.sqrt((nx - cp.x) ** 2 + (ny - cp.y) ** 2);
+          if (dist <= cp.eps && dist < bestD) { bestD = dist; bestC = cp.cls; }
+        }
+      } else {
+        // Hierarchical: 1-NN on labeled points
+        for (const lp of labeled) {
+          const dist = (nx - lp.x) ** 2 + (ny - lp.y) ** 2;
+          if (dist < bestD) { bestD = dist; bestC = lp.cls; }
+        }
+      }
+
+      if (bestC < 0) continue; // leave as default background (noise region)
+
+      const bg = CLUSTER_PALETTE[bestC % CLUSTER_PALETTE.length];
+      const x0 = Math.floor(gx * cellW), x1 = Math.floor((gx + 1) * cellW);
+      const y0 = Math.floor(gy * cellH), y1 = Math.floor((gy + 1) * cellH);
+      for (let py = y0; py < y1; py++) {
+        for (let px = x0; px < x1; px++) {
+          const idx = (py * W + px) * 4;
+          d[idx]     = Math.round(250 * 0.85 + bg[0] * 0.15);
+          d[idx + 1] = Math.round(252 * 0.85 + bg[1] * 0.15);
+          d[idx + 2] = Math.round(254 * 0.85 + bg[2] * 0.15);
+          d[idx + 3] = 255;
+        }
+      }
+    }
+  }
+  clustBoundaryImg = imgData;
 }
 </script>
 </body>
